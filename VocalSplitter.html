@@ -2,35 +2,109 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Vocal Splitter (Fixing Parameters)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Vocal Splitter + Download</title>
     <style>
-        body { font-family: sans-serif; background: #121212; color: #e0e0e0; display: flex; justify-content: center; padding: 20px; }
-        .container { max-width: 500px; width: 100%; background: #1e1e1e; padding: 30px; border-radius: 12px; border: 1px solid #333; text-align: center; }
-        .btn { background: #2ecc71; color: white; border: none; padding: 15px; width: 100%; border-radius: 6px; cursor: pointer; font-size: 16px; margin-top: 15px; }
-        .btn:disabled { background: #444; }
-        #statusBox { margin-top: 20px; padding: 15px; background: #252525; border-radius: 6px; font-size: 14px; border-left: 4px solid #f1c40f; text-align: left; }
-        .results { display: none; margin-top: 25px; }
-        audio { width: 100%; margin-top: 10px; }
-        label { display: block; margin-top: 10px; font-size: 12px; color: #888; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, sans-serif; 
+            background: #121212; 
+            color: #e0e0e0; 
+            display: flex; 
+            justify-content: center; 
+            padding: 20px;
+        }
+        .container { 
+            max-width: 500px; 
+            width: 100%; 
+            background: #1e1e1e; 
+            padding: 30px; 
+            border-radius: 15px; 
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+            border: 1px solid #333;
+            text-align: center;
+        }
+        h2 { color: #2ecc71; margin-bottom: 10px; }
+        .info { font-size: 13px; color: #888; margin-bottom: 25px; }
+
+        input[type="file"] { 
+            margin: 15px 0; 
+            width: 100%; 
+            color: #ccc;
+        }
+
+        .btn { 
+            background: #2ecc71; 
+            color: white; 
+            border: none; 
+            padding: 14px; 
+            width: 100%; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            font-weight: bold;
+            transition: 0.2s;
+            margin-top: 10px;
+        }
+        .btn:hover { background: #27ae60; }
+        .btn:disabled { background: #444; cursor: not-allowed; }
+
+        .btn-download {
+            background: #3498db;
+            padding: 8px;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+        .btn-download:hover { background: #2980b9; }
+
+        #statusBox { 
+            margin-top: 25px; 
+            padding: 15px; 
+            background: #252525; 
+            border-radius: 8px; 
+            font-size: 14px; 
+            border-left: 4px solid #f1c40f;
+            text-align: left;
+        }
+
+        .results { display: none; margin-top: 30px; text-align: left; }
+        .result-item { 
+            margin-bottom: 20px; 
+            padding: 15px; 
+            background: #2a2a2a; 
+            border-radius: 8px;
+        }
+        label { display: block; margin-bottom: 8px; font-size: 12px; color: #2ecc71; font-weight: bold; text-transform: uppercase; }
+        audio { width: 100%; }
+
+        .timer-val { color: #f1c40f; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <h2>Vocal Splitter AI</h2>
-    <input type="file" id="audioFile">
+    <p class="info">Разделение аудио на вокал и музыку через облачный ИИ.</p>
+    
+    <input type="file" id="audioFile" accept="audio/*">
     <button id="startBtn" class="btn">Разделить аудио</button>
 
     <div id="statusBox">
-        <b>Статус:</b> <span id="statusText">Ожидание...</span><br>
-        <b>Таймер:</b> <span id="seconds">0</span> сек.
+        <b>Статус:</b> <span id="statusText">Ожидание файла...</span><br>
+        <b>Время:</b> <span id="seconds" class="timer-val">0</span> сек.
     </div>
 
     <div id="results" class="results">
-        <label>Вокал (Acapella)</label>
-        <audio id="vocalAudio" controls></audio>
-        <label>Инструментал (Backing)</label>
-        <audio id="musicAudio" controls></audio>
+        <div class="result-item">
+            <label>Голос (Acapella)</label>
+            <audio id="vocalAudio" controls></audio>
+            <button class="btn btn-download" onclick="downloadAudio('vocalAudio', 'vocals.mp3')">💾 Скачать вокал</button>
+        </div>
+        
+        <div class="result-item">
+            <label>Музыка (Instrumental)</label>
+            <audio id="musicAudio" controls></audio>
+            <button class="btn btn-download" onclick="downloadAudio('musicAudio', 'instrumental.mp3')">💾 Скачать музыку</button>
+        </div>
     </div>
 </div>
 
@@ -38,45 +112,80 @@
     import { Client } from "https://cdn.jsdelivr.net/npm/@gradio/client/dist/index.min.js";
 
     const startBtn = document.getElementById('startBtn');
+    const audioFile = document.getElementById('audioFile');
     const statusText = document.getElementById('statusText');
     const secondsLabel = document.getElementById('seconds');
+    const resultsDiv = document.getElementById('results');
+    
     let timerInterval;
 
-    startBtn.onclick = async () => {
-        const file = document.getElementById('audioFile').files[0];
-        if (!file) return alert("Выберите файл!");
-
-        startBtn.disabled = true;
-        let sec = 0;
-        secondsLabel.innerText = "0";
-        timerInterval = setInterval(() => { sec++; secondsLabel.innerText = sec; }, 1000);
+    // Функция для скачивания файла
+    window.downloadAudio = async (playerId, fileName) => {
+        const audioSrc = document.getElementById(playerId).src;
+        if (!audioSrc) return;
 
         try {
-            statusText.innerText = "Подключение к серверу...";
+            statusText.innerText = "Подготовка файла к скачиванию...";
+            const response = await fetch(audioSrc);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            statusText.innerText = "Файл сохранен!";
+        } catch (e) {
+            console.error(e);
+            alert("Не удалось скачать файл. Попробуйте нажать правой кнопкой на плеер и выбрать 'Сохранить как'.");
+        }
+    };
+
+    startBtn.onclick = async () => {
+        const file = audioFile.files[0];
+        if (!file) {
+            alert("Пожалуйста, выберите аудиофайл!");
+            return;
+        }
+
+        // Сброс состояния
+        startBtn.disabled = true;
+        resultsDiv.style.display = 'none';
+        statusText.style.color = "#e0e0e0";
+        
+        let sec = 0;
+        secondsLabel.innerText = "0";
+        clearInterval(timerInterval);
+        timerInterval = setInterval(() => { 
+            sec++; 
+            secondsLabel.innerText = sec; 
+        }, 1000);
+
+        try {
+            statusText.innerText = "Подключение к облаку ИИ...";
             const client = await Client.connect("abidlabs/music-separation");
             
-            statusText.innerText = "Файл отправлен в обработку...";
+            statusText.innerText = "Файл загружен. Идет разделение...";
 
-            // Исправлено: передаем массив данных напрямую, 
-            // так как это самый надежный способ для простых API на Gradio
-            const result = await client.predict("/predict", [
-                file 
-            ]);
-            
-            console.log("Результат получен:", result);
-            
-            // Проверяем структуру ответа и подставляем в плееры
+            // Выполнение предсказания
+            const result = await client.predict("/predict", [file]);
+
+            // Загрузка ссылок в плееры
             if (result.data && result.data.length >= 2) {
                 document.getElementById('vocalAudio').src = result.data[0].url;
                 document.getElementById('musicAudio').src = result.data[1].url;
 
                 statusText.style.color = "#2ecc71";
-                statusText.innerText = "Готово!";
-                document.getElementById('results').style.display = 'block';
+                statusText.innerText = "Готово! Файлы получены.";
+                resultsDiv.style.display = 'block';
+            } else {
+                throw new Error("Неверный формат ответа от сервера.");
             }
 
         } catch (err) {
-            console.error("Детальная ошибка:", err);
+            console.error("Ошибка:", err);
             statusText.style.color = "#e74c3c";
             statusText.innerHTML = "Ошибка: " + err.message;
         } finally {
