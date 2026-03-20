@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Mobile Lyric Player Fixed</title>
+    <title>Mobile Lyric Player Pro</title>
     <style>
         :root {
             --bg-color: #050505;
@@ -19,7 +19,6 @@
             overflow: hidden; 
             display: flex; 
             flex-direction: column; 
-            /* Используем динамическую высоту экрана */
             height: 100vh;
             height: 100dvh; 
         }
@@ -40,7 +39,6 @@
             background: rgba(5,5,5,0.95); 
         }
 
-        /* Контейнер текста занимает всё свободное место */
         #lyrics-container { 
             flex: 1; 
             display: flex; 
@@ -61,33 +59,30 @@
             -webkit-text-fill-color: transparent;
             filter: drop-shadow(0 0 15px rgba(255, 140, 0, 0.4));
             line-height: 1.2; 
-            transition: transform 0.3s ease, opacity 0.3s ease;
+            transition: transform 0.2s ease, opacity 0.2s ease;
             opacity: 0; 
-            transform: scale(0.9);
+            transform: scale(0.95);
         }
         #lyrics.active { opacity: 1; transform: scale(1); }
         
         #freq-canvas { 
             position: absolute; 
-            bottom: 20px; 
+            bottom: 10px; 
             left: 0; 
             width: 100%; 
-            height: 60px; 
-            opacity: 0.5; 
+            height: 50px; 
+            opacity: 0.4; 
             pointer-events: none; 
         }
         
-        /* Панель управления с учетом безопасных зон */
         #ui { 
             background: #111; 
             display: none; 
             flex-direction: column; 
             align-items: center; 
             padding: 15px 20px;
-            /* Отступ снизу для мобильных (iPhone/Android gestures) */
             padding-bottom: calc(15px + env(safe-area-inset-bottom));
             border-top: 1px solid #222; 
-            box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
         }
 
         .controls { 
@@ -121,10 +116,10 @@
             border-radius: 12px; 
             overflow: hidden; 
             border: 1px solid #333; 
-            touch-action: none; /* Предотвращаем скролл при перемотке пальцем */
+            touch-action: none;
         }
         #wave-canvas { position: absolute; width: 100%; height: 100%; }
-        #progress-cursor { position: absolute; width: 3px; height: 100%; background: #fff; z-index: 5; pointer-events: none; }
+        #progress-cursor { position: absolute; width: 2px; height: 100%; background: #fff; z-index: 5; pointer-events: none; }
 
         @media (min-width: 768px) {
             #lyrics { font-size: 52px; }
@@ -134,7 +129,7 @@
 <body>
 
     <div id="drop-zone" onclick="document.getElementById('file-input').click()">
-        Нажмите, чтобы выбрать файл<br>(mp3.srt.mp3)
+        Нажмите для выбора файла<br>(mp3.srt.mp3)
         <input type="file" id="file-input" style="display:none" accept="audio/*">
     </div>
     
@@ -155,6 +150,10 @@
     </div>
 
     <script>
+        // --- КОНСТАНТЫ НАСТРОЙКИ ---
+        const LYRIC_OFFSET = 0.1; // Время опережения текста в секундах (напр. 0.5 = полсекунды)
+        // ---------------------------
+
         const audio = new Audio();
         let audioCtx, analyser, dataArray, source, subtitles = [];
         let isLoaded = false;
@@ -219,7 +218,6 @@
                     audioData = buffer.slice(0, srtOffset);
                 }
             } catch(e) {}
-
             audio.src = URL.createObjectURL(new Blob([audioData]));
             await calculateWave(audioData);
             document.getElementById('drop-zone').style.display = 'none';
@@ -228,7 +226,6 @@
             isLoaded = true;
         }
 
-        // Автозагрузка
         fetch('mp3.srt.mp3').then(r => r.ok && r.arrayBuffer()).then(b => b && processAudioBuffer(b, 'mp3.srt.mp3')).catch(() => {});
 
         document.getElementById('file-input').onchange = async (e) => {
@@ -266,14 +263,19 @@
         }
 
         audio.ontimeupdate = () => {
-            const time = audio.currentTime;
-            const current = subtitles.find(s => time >= s.start && time <= s.end);
+            // Применяем офсет к текущему времени аудио
+            const currentTimeWithOffset = audio.currentTime + LYRIC_OFFSET;
+            
+            const current = subtitles.find(s => currentTimeWithOffset >= s.start && currentTimeWithOffset <= s.end);
+            
             if (current) {
                 if (lyricsDiv.innerText !== current.text) {
                     lyricsDiv.innerText = current.text;
                     lyricsDiv.classList.add('active');
                 }
-            } else { lyricsDiv.classList.remove('active'); }
+            } else { 
+                lyricsDiv.classList.remove('active'); 
+            }
         };
 
         function parseSRT(data) {
@@ -294,7 +296,6 @@
             document.getElementById('play-btn').innerText = audio.paused ? '▶' : 'II'; 
         };
 
-        // Перемотка для мобилок (Touch) + Десктоп (Click)
         const seek = (e) => {
             if (!isLoaded) return;
             const rect = waveCanvas.getBoundingClientRect();
@@ -302,7 +303,10 @@
             audio.currentTime = (x / rect.width) * audio.duration;
         };
         document.getElementById('waveform-container').addEventListener('click', seek);
-        document.getElementById('waveform-container').addEventListener('touchstart', seek);
+        document.getElementById('waveform-container').addEventListener('touchstart', (e) => {
+            seek(e);
+            e.preventDefault(); // Чтобы не было двойного срабатывания на телефонах
+        }, {passive: false});
 
         document.body.ondragover = e => e.preventDefault();
         document.body.ondrop = async (e) => {
