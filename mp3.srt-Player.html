@@ -2,43 +2,61 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Ultimate Lyric Player</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mobile Lyric Player</title>
     <style>
         body { background: #050505; color: white; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
-        #drop-zone { position: absolute; inset: 20px; border: 2px dashed #333; display: flex; align-items: center; justify-content: center; border-radius: 20px; color: #444; font-size: 22px; cursor: pointer; z-index: 100; background: rgba(5,5,5,0.95); transition: 0.3s; }
-        #drop-zone.active { border-color: #ffd700; color: #fff; }
         
-        #lyrics-container { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; width: 100%; padding: 40px; box-sizing: border-box; }
+        /* Зона загрузки */
+        #drop-zone { position: absolute; inset: 10px; border: 2px dashed #333; display: flex; align-items: center; justify-content: center; border-radius: 20px; color: #666; font-size: 18px; text-align: center; padding: 20px; z-index: 100; background: rgba(5,5,5,0.95); transition: 0.3s; }
+        
+        #lyrics-container { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; width: 100%; padding: 20px; box-sizing: border-box; overflow: hidden; }
+        
+        /* Адаптивный текст */
         #lyrics { 
-            font-size: 56px; text-align: center; font-weight: 900; 
+            font-size: 8vw; /* Размер зависит от ширины экрана */
+            text-align: center; font-weight: 900; 
             background: linear-gradient(180deg, #fff 0%, #ffd700 50%, #ff8c00 100%);
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            filter: drop-shadow(0 0 20px rgba(255, 140, 0, 0.4));
-            max-width: 950px; line-height: 1.2; 
+            filter: drop-shadow(0 0 15px rgba(255, 140, 0, 0.4));
+            max-width: 100%; line-height: 1.2; 
             transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
             opacity: 0; transform: scale(0.9);
+            word-wrap: break-word;
         }
         #lyrics.active { opacity: 1; transform: scale(1); }
         
-        #freq-canvas { position: absolute; bottom: 120px; left: 0; width: 100%; height: 100px; opacity: 0.8; pointer-events: none; }
+        /* Визуализатор */
+        #freq-canvas { position: absolute; bottom: 140px; left: 0; width: 100%; height: 80px; opacity: 0.7; pointer-events: none; }
         
-        #ui { height: 130px; background: #111; display: none; flex-direction: column; align-items: center; padding: 15px 30px; border-top: 1px solid #222; box-sizing: border-box; }
-        .controls { display: flex; align-items: center; gap: 20px; width: 100%; max-width: 900px; }
+        /* Панель управления (увеличенная для мобильных) */
+        #ui { min-height: 140px; background: #111; display: none; flex-direction: column; align-items: center; padding: 15px; border-top: 1px solid #222; box-sizing: border-box; }
+        .controls { display: flex; align-items: center; gap: 15px; width: 100%; max-width: 600px; }
         
         #play-btn { 
             background: linear-gradient(45deg, #ffd700, #ff8c00); 
-            border: none; width: 55px; height: 55px; border-radius: 50%; 
-            cursor: pointer; font-size: 22px; color: #000; box-shadow: 0 4px 15px rgba(255,140,0,0.3); flex-shrink: 0;
+            border: none; width: 65px; height: 65px; border-radius: 50%; 
+            cursor: pointer; font-size: 24px; color: #000; flex-shrink: 0;
+            box-shadow: 0 4px 15px rgba(255,140,0,0.3);
         }
         
-        #waveform-container { position: relative; flex: 1; height: 60px; background: #000; border-radius: 10px; cursor: pointer; overflow: hidden; border: 1px solid #333; }
+        #waveform-container { position: relative; flex: 1; height: 50px; background: #000; border-radius: 12px; cursor: pointer; overflow: hidden; border: 1px solid #333; }
         #wave-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-        #progress-cursor { position: absolute; top: 0; left: 0; width: 2px; height: 100%; background: #fff; box-shadow: 0 0 10px #fff; z-index: 5; pointer-events: none; }
+        #progress-cursor { position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: #fff; z-index: 5; pointer-events: none; }
+
+        /* Стили для десктопа (уменьшаем текст) */
+        @media (min-width: 768px) {
+            #lyrics { font-size: 52px; }
+            #ui { min-height: 120px; }
+        }
     </style>
 </head>
 <body>
 
-    <div id="drop-zone">Перетащите .mp3 или подождите загрузки...</div>
+    <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+        Нажмите или перетащите файл <br> (mp3.srt.mp3)
+        <input type="file" id="file-input" style="display:none" accept="audio/*">
+    </div>
     
     <div id="lyrics-container">
         <canvas id="freq-canvas"></canvas>
@@ -46,7 +64,7 @@
     </div>
 
     <div id="ui">
-        <div id="filename" style="font-size: 11px; color: #555; margin-bottom: 8px; font-family: monospace;"></div>
+        <div id="filename" style="font-size: 10px; color: #555; margin-bottom: 10px; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 90%; text-align: center;"></div>
         <div class="controls">
             <button id="play-btn">▶</button>
             <div id="waveform-container">
@@ -68,15 +86,16 @@
         const cursor = document.getElementById('progress-cursor');
         const ui = document.getElementById('ui');
 
-        // Глобальный цикл отрисовки
         function globalRender() {
             requestAnimationFrame(globalRender);
             if (!isLoaded) return;
 
             if (audioCtx && !audio.paused) {
                 const ctxF = freqCanvas.getContext('2d');
-                freqCanvas.width = freqCanvas.clientWidth;
-                freqCanvas.height = freqCanvas.clientHeight;
+                if (freqCanvas.width !== freqCanvas.clientWidth) {
+                    freqCanvas.width = freqCanvas.clientWidth;
+                    freqCanvas.height = freqCanvas.clientHeight;
+                }
                 analyser.getByteFrequencyData(dataArray);
                 ctxF.clearRect(0, 0, freqCanvas.width, freqCanvas.height);
                 const barWidth = freqCanvas.width / dataArray.length;
@@ -85,7 +104,6 @@
                     const barH = (val / 255) * freqCanvas.height;
                     ctxF.fillStyle = `hsla(${(i/dataArray.length)*180+200}, 80%, 50%, ${val/255})`;
                     ctxF.fillRect(i * barWidth, freqCanvas.height - barH, barWidth - 2, barH);
-                    if (i === 2 && val > 200) lyricsDiv.style.filter = `drop-shadow(0 0 ${val/10}px rgba(255, 215, 0, 0.6))`;
                 }
             }
 
@@ -103,16 +121,13 @@
                 for (let i = 0; i < waveData.length; i++) {
                     ctxW.fillStyle = (i < progressPos) ? "#ff8c00" : "#444";
                     const peak = waveData[i];
-                    const y = (1 + peak.min) * amp;
-                    const height = Math.max(1, (peak.max - peak.min) * amp);
-                    ctxW.fillRect(i, y, 1, height);
+                    ctxW.fillRect(i, (1 + peak.min) * amp, 1, Math.max(1, (peak.max - peak.min) * amp));
                 }
                 cursor.style.left = progressPos + 'px';
             }
         }
         globalRender();
 
-        // ФУНКЦИЯ ОБРАБОТКИ ДАННЫХ
         async function processAudioBuffer(buffer, name) {
             const view = new DataView(buffer);
             let audioData = buffer;
@@ -125,58 +140,48 @@
                     subtitles = parseSRT(srtText);
                     audioData = buffer.slice(0, srtOffset);
                 }
-            } catch(err) { console.log("SRT не найден"); }
+            } catch(err) { console.log("SRT error or missing"); }
 
             audio.src = URL.createObjectURL(new Blob([audioData]));
             await calculateWave(audioData);
-            
             document.getElementById('drop-zone').style.display = 'none';
             ui.style.display = 'flex';
             document.getElementById('filename').innerText = name;
             isLoaded = true;
         }
 
-        // АВТОЗАГРУЗКА ИЗ КОРНЯ
-        async function loadDefaultFile() {
-            const defaultFileName = 'mp3.srt.mp3';
-            try {
-                const response = await fetch(defaultFileName);
-                if (response.ok) {
-                    const buffer = await response.arrayBuffer();
-                    await processAudioBuffer(buffer, defaultFileName);
-                    console.log("Файл по умолчанию загружен");
-                }
-            } catch (e) { console.log("Автозагрузка не удалась, ждем drop"); }
-        }
-        loadDefaultFile();
+        // Автозагрузка
+        fetch('mp3.srt.mp3').then(r => r.ok && r.arrayBuffer()).then(b => b && processAudioBuffer(b, 'mp3.srt.mp3')).catch(() => {});
 
-        // DROP ZONE LOGIC
-        document.getElementById('drop-zone').ondrop = async (e) => {
+        // Выбор файла через кнопку (для мобильных)
+        document.getElementById('file-input').onchange = async (e) => {
+            const file = e.target.files[0];
+            if (file) processAudioBuffer(await file.arrayBuffer(), file.name);
+        };
+
+        // Drag & Drop
+        document.body.ondragover = e => { e.preventDefault(); document.getElementById('drop-zone').classList.add('active'); };
+        document.body.ondrop = async (e) => {
             e.preventDefault();
             const file = e.dataTransfer.files[0];
-            if (file) {
-                const buffer = await file.arrayBuffer();
-                await processAudioBuffer(buffer, file.name);
-            }
+            if (file) processAudioBuffer(await file.arrayBuffer(), file.name);
         };
 
         async function calculateWave(data) {
             const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
-            try {
-                const audioBuf = await tempCtx.decodeAudioData(data.slice(0));
-                const raw = audioBuf.getChannelData(0);
-                const w = waveCanvas.clientWidth || 800;
-                waveData = [];
-                const step = Math.ceil(raw.length / w);
-                for (let i = 0; i < w; i++) {
-                    let min = 1, max = -1;
-                    for (let j = 0; j < step; j++) {
-                        const d = raw[i * step + j];
-                        if (d < min) min = d; if (d > max) max = d;
-                    }
-                    waveData.push({min, max});
+            const audioBuf = await tempCtx.decodeAudioData(data.slice(0));
+            const raw = audioBuf.getChannelData(0);
+            const w = waveCanvas.clientWidth || window.innerWidth;
+            waveData = [];
+            const step = Math.ceil(raw.length / w);
+            for (let i = 0; i < w; i++) {
+                let min = 1, max = -1;
+                for (let j = 0; j < step; j++) {
+                    const d = raw[i * step + j];
+                    if (d < min) min = d; if (d > max) max = d;
                 }
-            } catch (e) { console.error(e); }
+                waveData.push({min, max});
+            }
             tempCtx.close();
         }
 
@@ -184,7 +189,7 @@
             if (audioCtx) return;
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 128;
+            analyser.fftSize = 64; // Меньше для мобильных (экономия ресурсов)
             source = audioCtx.createMediaElementSource(audio);
             source.connect(analyser);
             analyser.connect(audioCtx.destination);
@@ -199,9 +204,7 @@
                     lyricsDiv.innerText = current.text;
                     lyricsDiv.classList.add('active');
                 }
-            } else {
-                lyricsDiv.classList.remove('active');
-            }
+            } else { lyricsDiv.classList.remove('active'); }
         };
 
         function parseSRT(data) {
@@ -222,10 +225,10 @@
             document.getElementById('play-btn').innerText = audio.paused ? '▶' : 'II'; 
         };
 
-        document.getElementById('waveform-container').onclick = (e) => { 
-            if (isLoaded) audio.currentTime = (e.offsetX / e.currentTarget.clientWidth) * audio.duration; 
-        };
-        document.body.ondragover = e => e.preventDefault();
+        // Перемотка кликом/касанием
+        document.getElementById('waveform-container').addEventListener('click', (e) => {
+            if (isLoaded) audio.currentTime = (e.offsetX / e.currentTarget.clientWidth) * audio.duration;
+        });
     </script>
 </body>
 </html>
