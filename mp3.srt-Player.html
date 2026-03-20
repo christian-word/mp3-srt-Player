@@ -1,0 +1,231 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Ultimate Lyric Player</title>
+    <style>
+        body { background: #050505; color: white; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+        #drop-zone { position: absolute; inset: 20px; border: 2px dashed #333; display: flex; align-items: center; justify-content: center; border-radius: 20px; color: #444; font-size: 22px; cursor: pointer; z-index: 100; background: rgba(5,5,5,0.95); transition: 0.3s; }
+        #drop-zone.active { border-color: #ffd700; color: #fff; }
+        
+        #lyrics-container { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; width: 100%; padding: 40px; box-sizing: border-box; }
+        #lyrics { 
+            font-size: 56px; text-align: center; font-weight: 900; 
+            background: linear-gradient(180deg, #fff 0%, #ffd700 50%, #ff8c00 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 20px rgba(255, 140, 0, 0.4));
+            max-width: 950px; line-height: 1.2; 
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
+            opacity: 0; transform: scale(0.9);
+        }
+        #lyrics.active { opacity: 1; transform: scale(1); }
+        
+        #freq-canvas { position: absolute; bottom: 120px; left: 0; width: 100%; height: 100px; opacity: 0.8; pointer-events: none; }
+        
+        #ui { height: 130px; background: #111; display: none; flex-direction: column; align-items: center; padding: 15px 30px; border-top: 1px solid #222; box-sizing: border-box; }
+        .controls { display: flex; align-items: center; gap: 20px; width: 100%; max-width: 900px; }
+        
+        #play-btn { 
+            background: linear-gradient(45deg, #ffd700, #ff8c00); 
+            border: none; width: 55px; height: 55px; border-radius: 50%; 
+            cursor: pointer; font-size: 22px; color: #000; box-shadow: 0 4px 15px rgba(255,140,0,0.3); flex-shrink: 0;
+        }
+        
+        #waveform-container { position: relative; flex: 1; height: 60px; background: #000; border-radius: 10px; cursor: pointer; overflow: hidden; border: 1px solid #333; }
+        #wave-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        #progress-cursor { position: absolute; top: 0; left: 0; width: 2px; height: 100%; background: #fff; box-shadow: 0 0 10px #fff; z-index: 5; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+    <div id="drop-zone">Перетащите .mp3 или подождите загрузки...</div>
+    
+    <div id="lyrics-container">
+        <canvas id="freq-canvas"></canvas>
+        <div id="lyrics"></div>
+    </div>
+
+    <div id="ui">
+        <div id="filename" style="font-size: 11px; color: #555; margin-bottom: 8px; font-family: monospace;"></div>
+        <div class="controls">
+            <button id="play-btn">▶</button>
+            <div id="waveform-container">
+                <canvas id="wave-canvas"></canvas>
+                <div id="progress-cursor"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const audio = new Audio();
+        let audioCtx, analyser, dataArray, source, subtitles = [];
+        let isLoaded = false;
+        let waveData = [];
+
+        const lyricsDiv = document.getElementById('lyrics');
+        const freqCanvas = document.getElementById('freq-canvas');
+        const waveCanvas = document.getElementById('wave-canvas');
+        const cursor = document.getElementById('progress-cursor');
+        const ui = document.getElementById('ui');
+
+        // Глобальный цикл отрисовки
+        function globalRender() {
+            requestAnimationFrame(globalRender);
+            if (!isLoaded) return;
+
+            if (audioCtx && !audio.paused) {
+                const ctxF = freqCanvas.getContext('2d');
+                freqCanvas.width = freqCanvas.clientWidth;
+                freqCanvas.height = freqCanvas.clientHeight;
+                analyser.getByteFrequencyData(dataArray);
+                ctxF.clearRect(0, 0, freqCanvas.width, freqCanvas.height);
+                const barWidth = freqCanvas.width / dataArray.length;
+                for (let i = 0; i < dataArray.length; i++) {
+                    const val = dataArray[i];
+                    const barH = (val / 255) * freqCanvas.height;
+                    ctxF.fillStyle = `hsla(${(i/dataArray.length)*180+200}, 80%, 50%, ${val/255})`;
+                    ctxF.fillRect(i * barWidth, freqCanvas.height - barH, barWidth - 2, barH);
+                    if (i === 2 && val > 200) lyricsDiv.style.filter = `drop-shadow(0 0 ${val/10}px rgba(255, 215, 0, 0.6))`;
+                }
+            }
+
+            if (waveData.length > 0) {
+                const ctxW = waveCanvas.getContext('2d');
+                if (waveCanvas.width !== waveCanvas.clientWidth) {
+                    waveCanvas.width = waveCanvas.clientWidth;
+                    waveCanvas.height = waveCanvas.clientHeight;
+                }
+                const w = waveCanvas.width;
+                const h = waveCanvas.height;
+                const progressPos = (audio.currentTime / (audio.duration || 1)) * w;
+                const amp = h / 2;
+                ctxW.clearRect(0, 0, w, h);
+                for (let i = 0; i < waveData.length; i++) {
+                    ctxW.fillStyle = (i < progressPos) ? "#ff8c00" : "#444";
+                    const peak = waveData[i];
+                    const y = (1 + peak.min) * amp;
+                    const height = Math.max(1, (peak.max - peak.min) * amp);
+                    ctxW.fillRect(i, y, 1, height);
+                }
+                cursor.style.left = progressPos + 'px';
+            }
+        }
+        globalRender();
+
+        // ФУНКЦИЯ ОБРАБОТКИ ДАННЫХ
+        async function processAudioBuffer(buffer, name) {
+            const view = new DataView(buffer);
+            let audioData = buffer;
+            try {
+                const magic = new TextDecoder().decode(buffer.slice(buffer.byteLength - 6));
+                if (magic === "MP3SRT") {
+                    const srtSize = view.getUint32(buffer.byteLength - 10, true);
+                    const srtOffset = buffer.byteLength - 10 - srtSize;
+                    const srtText = new TextDecoder('windows-1251').decode(buffer.slice(srtOffset, buffer.byteLength - 10));
+                    subtitles = parseSRT(srtText);
+                    audioData = buffer.slice(0, srtOffset);
+                }
+            } catch(err) { console.log("SRT не найден"); }
+
+            audio.src = URL.createObjectURL(new Blob([audioData]));
+            await calculateWave(audioData);
+            
+            document.getElementById('drop-zone').style.display = 'none';
+            ui.style.display = 'flex';
+            document.getElementById('filename').innerText = name;
+            isLoaded = true;
+        }
+
+        // АВТОЗАГРУЗКА ИЗ КОРНЯ
+        async function loadDefaultFile() {
+            const defaultFileName = 'mp3.srt.mp3';
+            try {
+                const response = await fetch(defaultFileName);
+                if (response.ok) {
+                    const buffer = await response.arrayBuffer();
+                    await processAudioBuffer(buffer, defaultFileName);
+                    console.log("Файл по умолчанию загружен");
+                }
+            } catch (e) { console.log("Автозагрузка не удалась, ждем drop"); }
+        }
+        loadDefaultFile();
+
+        // DROP ZONE LOGIC
+        document.getElementById('drop-zone').ondrop = async (e) => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                const buffer = await file.arrayBuffer();
+                await processAudioBuffer(buffer, file.name);
+            }
+        };
+
+        async function calculateWave(data) {
+            const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
+            try {
+                const audioBuf = await tempCtx.decodeAudioData(data.slice(0));
+                const raw = audioBuf.getChannelData(0);
+                const w = waveCanvas.clientWidth || 800;
+                waveData = [];
+                const step = Math.ceil(raw.length / w);
+                for (let i = 0; i < w; i++) {
+                    let min = 1, max = -1;
+                    for (let j = 0; j < step; j++) {
+                        const d = raw[i * step + j];
+                        if (d < min) min = d; if (d > max) max = d;
+                    }
+                    waveData.push({min, max});
+                }
+            } catch (e) { console.error(e); }
+            tempCtx.close();
+        }
+
+        function initAudio() {
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 128;
+            source = audioCtx.createMediaElementSource(audio);
+            source.connect(analyser);
+            analyser.connect(audioCtx.destination);
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+        }
+
+        audio.ontimeupdate = () => {
+            const time = audio.currentTime;
+            const current = subtitles.find(s => time >= s.start && time <= s.end);
+            if (current) {
+                if (lyricsDiv.innerText !== current.text) {
+                    lyricsDiv.innerText = current.text;
+                    lyricsDiv.classList.add('active');
+                }
+            } else {
+                lyricsDiv.classList.remove('active');
+            }
+        };
+
+        function parseSRT(data) {
+            const blocks = data.replace(/\r/g, '').trim().split(/\n\s*\n/);
+            return blocks.map(block => {
+                const lines = block.split('\n');
+                const timeMatch = lines[1]?.match(/(\d+):(\d+):(\d+),(\d+) --> (\d+):(\d+):(\d+),(\d+)/);
+                if (timeMatch) {
+                    const toS = (m, off) => parseInt(m[off+1])*3600 + parseInt(m[off+2])*60 + parseInt(m[off+3]) + parseInt(m[off+4])/1000;
+                    return { start: toS(timeMatch, 0), end: toS(timeMatch, 4), text: lines.slice(2).join(' ') };
+                }
+            }).filter(i => i);
+        }
+
+        document.getElementById('play-btn').onclick = () => { 
+            initAudio(); 
+            audio.paused ? audio.play() : audio.pause(); 
+            document.getElementById('play-btn').innerText = audio.paused ? '▶' : 'II'; 
+        };
+
+        document.getElementById('waveform-container').onclick = (e) => { 
+            if (isLoaded) audio.currentTime = (e.offsetX / e.currentTarget.clientWidth) * audio.duration; 
+        };
+        document.body.ondragover = e => e.preventDefault();
+    </script>
+</body>
+</html>
