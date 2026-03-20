@@ -1,0 +1,90 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Vocal Splitter (Fixing Parameters)</title>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: #e0e0e0; display: flex; justify-content: center; padding: 20px; }
+        .container { max-width: 500px; width: 100%; background: #1e1e1e; padding: 30px; border-radius: 12px; border: 1px solid #333; text-align: center; }
+        .btn { background: #2ecc71; color: white; border: none; padding: 15px; width: 100%; border-radius: 6px; cursor: pointer; font-size: 16px; margin-top: 15px; }
+        .btn:disabled { background: #444; }
+        #statusBox { margin-top: 20px; padding: 15px; background: #252525; border-radius: 6px; font-size: 14px; border-left: 4px solid #f1c40f; text-align: left; }
+        .results { display: none; margin-top: 25px; }
+        audio { width: 100%; margin-top: 10px; }
+        label { display: block; margin-top: 10px; font-size: 12px; color: #888; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Vocal Splitter AI</h2>
+    <input type="file" id="audioFile">
+    <button id="startBtn" class="btn">Разделить аудио</button>
+
+    <div id="statusBox">
+        <b>Статус:</b> <span id="statusText">Ожидание...</span><br>
+        <b>Таймер:</b> <span id="seconds">0</span> сек.
+    </div>
+
+    <div id="results" class="results">
+        <label>Вокал (Acapella)</label>
+        <audio id="vocalAudio" controls></audio>
+        <label>Инструментал (Backing)</label>
+        <audio id="musicAudio" controls></audio>
+    </div>
+</div>
+
+<script type="module">
+    import { Client } from "https://cdn.jsdelivr.net/npm/@gradio/client/dist/index.min.js";
+
+    const startBtn = document.getElementById('startBtn');
+    const statusText = document.getElementById('statusText');
+    const secondsLabel = document.getElementById('seconds');
+    let timerInterval;
+
+    startBtn.onclick = async () => {
+        const file = document.getElementById('audioFile').files[0];
+        if (!file) return alert("Выберите файл!");
+
+        startBtn.disabled = true;
+        let sec = 0;
+        secondsLabel.innerText = "0";
+        timerInterval = setInterval(() => { sec++; secondsLabel.innerText = sec; }, 1000);
+
+        try {
+            statusText.innerText = "Подключение к серверу...";
+            const client = await Client.connect("abidlabs/music-separation");
+            
+            statusText.innerText = "Файл отправлен в обработку...";
+
+            // Исправлено: передаем массив данных напрямую, 
+            // так как это самый надежный способ для простых API на Gradio
+            const result = await client.predict("/predict", [
+                file 
+            ]);
+            
+            console.log("Результат получен:", result);
+            
+            // Проверяем структуру ответа и подставляем в плееры
+            if (result.data && result.data.length >= 2) {
+                document.getElementById('vocalAudio').src = result.data[0].url;
+                document.getElementById('musicAudio').src = result.data[1].url;
+
+                statusText.style.color = "#2ecc71";
+                statusText.innerText = "Готово!";
+                document.getElementById('results').style.display = 'block';
+            }
+
+        } catch (err) {
+            console.error("Детальная ошибка:", err);
+            statusText.style.color = "#e74c3c";
+            statusText.innerHTML = "Ошибка: " + err.message;
+        } finally {
+            clearInterval(timerInterval);
+            startBtn.disabled = false;
+        }
+    };
+</script>
+
+</body>
+</html>
