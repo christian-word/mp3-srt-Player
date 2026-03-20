@@ -1,0 +1,188 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>GospelVoice - Deep Blue Edition</title>
+    <script src="https://unpkg.com/wavesurfer.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body, html { 
+            margin: 0; padding: 0; 
+            /* ЗАМЕНА ФОНА: Глубокий синий градиент вместо черного */
+            background: radial-gradient(circle at center, #001a33 0%, #00050a 100%);
+            color: #fff; 
+            font-family: 'Arial Black', Gadget, sans-serif; 
+            height: 100vh; overflow: hidden; 
+        }
+
+        /* Меню выбора */
+        #menu {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 5, 10, 0.95); z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .btn {
+            padding: 20px 40px; font-size: 22px; cursor: pointer;
+            margin: 10px; background: #00264d; color: #fff; border: 2px solid #004080; border-radius: 10px;
+            transition: 0.3s;
+        }
+        .btn.active { border-color: #2ecc71; background: #003d1a; box-shadow: 0 0 15px rgba(46, 204, 113, 0.4); }
+        #start-btn { padding: 25px 80px; font-size: 30px; background: #2ecc71; color: #fff; border: none; border-radius: 50px; cursor: pointer; margin-top: 30px; }
+
+        #main-container { display: flex; flex-direction: column; height: 100vh; width: 100vw; }
+
+        /* ЗОНА ТЕКСТА */
+        #lyrics-area {
+            flex: 1; 
+            display: flex; flex-direction: column;
+            position: relative; overflow: hidden;
+        }
+
+        #track {
+            display: flex; flex-direction: column; align-items: center;
+            transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+            will-change: transform;
+            padding-top: 50vh; 
+            padding-bottom: 50vh;
+        }
+
+        .line {
+            font-size: 5.5vw; font-weight: 900; line-height: 1.2;
+            margin: 60px 0; text-align: center; width: 85vw;
+            opacity: 0.2; transition: all 0.4s;
+            color: #ffffff;
+        }
+
+        .line.active {
+            opacity: 1; color: #ffff00; transform: scale(1.15);
+            text-shadow: 0 0 40px rgba(255, 255, 0, 0.7);
+        }
+
+        /* ПЛЕЕР ВНИЗУ */
+        #footer {
+            height: 180px; 
+            background: rgba(0, 0, 0, 0.4); /* Полупрозрачный фон для плеера */
+            position: relative;
+            border-top: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #waveform { width: 100%; height: 100%; }
+        
+        .controls-hint {
+            position: absolute; top: 10px; right: 20px;
+            font-size: 14px; color: #555; z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+<div id="menu">
+    <h1 style="color:#2ecc71; font-size: 45px; text-shadow: 0 0 20px rgba(46,204,113,0.3);">ТАКИЙ ВЕЛИКИЙ БОГ</h1>
+    <div style="display: flex;">
+        <button class="btn" id="btn-song" onclick="selectTrack('song')">ПІСНЯ</button>
+        <button class="btn" id="btn-backing" onclick="selectTrack('backing')">ФОНОГРАМА</button>
+    </div>
+    <button id="start-btn" onclick="start()">ЗАПУСТИТЬ</button>
+    <p id="status" style="color: #888; margin-top: 20px;">Оберіть режим для завантаження</p>
+</div>
+
+<div id="main-container">
+    <div id="lyrics-area">
+        <div id="track"></div>
+    </div>
+    
+    <div id="footer">
+        <div class="controls-hint">SPACE: Play/Pause | ESC: Menu</div>
+        <div id="waveform"></div>
+    </div>
+</div>
+
+<script>
+const URLS = {
+    song: 'https://raw.githubusercontent.com/christian-word/GospelVoice/main/2023100117595266.mp3',
+    backing: 'https://raw.githubusercontent.com/christian-word/GospelVoice/main/2023100117595272.mp3',
+    srt: 'https://raw.githubusercontent.com/christian-word/GospelVoice/main/ready_lyrics.srt'
+};
+
+let subs = [];
+let currentIdx = -1;
+let trackReady = false;
+
+// ИНИЦИАЛИЗАЦИЯ С ТОНКИМИ РИСКАМИ
+const wavesurfer = WaveSurfer.create({
+    container: '#waveform',
+    waveColor: '#1d5a3a', 
+    progressColor: '#2ecc71', 
+    cursorColor: '#ffffff',
+    height: 180,
+    // Настройки из вашего запроса:
+    barWidth: 1,   // Очень тонкие риски
+    barGap: 1,     // Густо расположенные
+    barRadius: 0,  // Прямые
+    responsive: true,
+    normalize: true
+});
+
+function selectTrack(type) {
+    trackReady = true;
+    document.getElementById('btn-song').className = 'btn' + (type==='song'?' active':'');
+    document.getElementById('btn-backing').className = 'btn' + (type==='backing'?' active':'');
+    document.getElementById('status').innerText = "Завантаження звуку...";
+    wavesurfer.load(URLS[type]);
+}
+
+fetch(URLS.srt)
+    .then(res => res.text())
+    .then(data => {
+        subs = parseSRT(data);
+        const container = document.getElementById('track');
+        container.innerHTML = subs.map((s, i) => `<div class="line" id="l-${i}">${s.text}</div>`).join('');
+        document.getElementById('status').innerText = "Готово до запуску";
+    });
+
+function parseSRT(data) {
+    return data.trim().split(/\n\s*\n/).map(block => {
+        const lines = block.split('\n').filter(l => l.trim());
+        if (lines.length < 3) return null;
+        const times = lines[1].split(' --> ').map(t => {
+            const [hms, ms] = t.trim().replace(',', '.').split('.');
+            const p = hms.split(':').map(parseFloat);
+            return (p[0] * 3600) + (p[1] * 60) + p[2] + (parseFloat(ms)/1000 || 0);
+        });
+        return { start: times[0], end: times[1], text: lines.slice(2).join('<br>') };
+    }).filter(x => x);
+}
+
+function start() {
+    if (!trackReady) return alert("Спочатку оберіть трек!");
+    document.getElementById('menu').style.display = 'none';
+    centerLine(0);
+    wavesurfer.play();
+}
+
+function centerLine(idx) {
+    const track = document.getElementById('track');
+    const activeEl = document.getElementById(`l-${idx}`);
+    const area = document.getElementById('lyrics-area');
+    if (activeEl) {
+        const offset = activeEl.offsetTop - (area.offsetHeight / 2) + (activeEl.offsetHeight / 2);
+        track.style.transform = `translateY(${-offset}px)`;
+    }
+}
+
+wavesurfer.on('audioprocess', () => {
+    const time = wavesurfer.getCurrentTime();
+    let idx = subs.findIndex(s => time >= s.start && time <= s.end);
+    if (idx !== -1 && idx !== currentIdx) {
+        currentIdx = idx;
+        document.querySelectorAll('.line').forEach((l, i) => l.classList.toggle('active', i === idx));
+        centerLine(idx);
+    }
+});
+
+window.onkeydown = e => {
+    if (e.code === 'Space') { e.preventDefault(); wavesurfer.playPause(); }
+    if (e.code === 'Escape') { document.getElementById('menu').style.display = 'flex'; wavesurfer.pause(); }
+};
+</script>
+</body>
+</html>
