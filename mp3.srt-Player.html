@@ -2,59 +2,139 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Mobile Lyric Player</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Mobile Lyric Player Fixed</title>
     <style>
-        body { background: #050505; color: white; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+        :root {
+            --bg-color: #050505;
+            --accent-grad: linear-gradient(45deg, #ffd700, #ff8c00);
+        }
+
+        body { 
+            background: var(--bg-color); 
+            color: white; 
+            font-family: 'Segoe UI', Roboto, sans-serif; 
+            margin: 0; 
+            padding: 0;
+            overflow: hidden; 
+            display: flex; 
+            flex-direction: column; 
+            /* Используем динамическую высоту экрана */
+            height: 100vh;
+            height: 100dvh; 
+        }
         
-        /* Зона загрузки */
-        #drop-zone { position: absolute; inset: 10px; border: 2px dashed #333; display: flex; align-items: center; justify-content: center; border-radius: 20px; color: #666; font-size: 18px; text-align: center; padding: 20px; z-index: 100; background: rgba(5,5,5,0.95); transition: 0.3s; }
+        #drop-zone { 
+            position: absolute; 
+            inset: 10px; 
+            border: 2px dashed #333; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            border-radius: 20px; 
+            color: #666; 
+            font-size: 18px; 
+            text-align: center; 
+            padding: 20px; 
+            z-index: 100; 
+            background: rgba(5,5,5,0.95); 
+        }
+
+        /* Контейнер текста занимает всё свободное место */
+        #lyrics-container { 
+            flex: 1; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            position: relative; 
+            width: 100%; 
+            padding: 20px; 
+            box-sizing: border-box;
+        }
         
-        #lyrics-container { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; width: 100%; padding: 20px; box-sizing: border-box; overflow: hidden; }
-        
-        /* Адаптивный текст */
         #lyrics { 
-            font-size: 8vw; /* Размер зависит от ширины экрана */
-            text-align: center; font-weight: 900; 
+            font-size: 8vw; 
+            text-align: center; 
+            font-weight: 900; 
             background: linear-gradient(180deg, #fff 0%, #ffd700 50%, #ff8c00 100%);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            -webkit-background-clip: text; 
+            -webkit-text-fill-color: transparent;
             filter: drop-shadow(0 0 15px rgba(255, 140, 0, 0.4));
-            max-width: 100%; line-height: 1.2; 
-            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
-            opacity: 0; transform: scale(0.9);
-            word-wrap: break-word;
+            line-height: 1.2; 
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            opacity: 0; 
+            transform: scale(0.9);
         }
         #lyrics.active { opacity: 1; transform: scale(1); }
         
-        /* Визуализатор */
-        #freq-canvas { position: absolute; bottom: 140px; left: 0; width: 100%; height: 80px; opacity: 0.7; pointer-events: none; }
-        
-        /* Панель управления (увеличенная для мобильных) */
-        #ui { min-height: 140px; background: #111; display: none; flex-direction: column; align-items: center; padding: 15px; border-top: 1px solid #222; box-sizing: border-box; }
-        .controls { display: flex; align-items: center; gap: 15px; width: 100%; max-width: 600px; }
-        
-        #play-btn { 
-            background: linear-gradient(45deg, #ffd700, #ff8c00); 
-            border: none; width: 65px; height: 65px; border-radius: 50%; 
-            cursor: pointer; font-size: 24px; color: #000; flex-shrink: 0;
-            box-shadow: 0 4px 15px rgba(255,140,0,0.3);
+        #freq-canvas { 
+            position: absolute; 
+            bottom: 20px; 
+            left: 0; 
+            width: 100%; 
+            height: 60px; 
+            opacity: 0.5; 
+            pointer-events: none; 
         }
         
-        #waveform-container { position: relative; flex: 1; height: 50px; background: #000; border-radius: 12px; cursor: pointer; overflow: hidden; border: 1px solid #333; }
-        #wave-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-        #progress-cursor { position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: #fff; z-index: 5; pointer-events: none; }
+        /* Панель управления с учетом безопасных зон */
+        #ui { 
+            background: #111; 
+            display: none; 
+            flex-direction: column; 
+            align-items: center; 
+            padding: 15px 20px;
+            /* Отступ снизу для мобильных (iPhone/Android gestures) */
+            padding-bottom: calc(15px + env(safe-area-inset-bottom));
+            border-top: 1px solid #222; 
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
+        }
 
-        /* Стили для десктопа (уменьшаем текст) */
+        .controls { 
+            display: flex; 
+            align-items: center; 
+            gap: 15px; 
+            width: 100%; 
+            max-width: 600px; 
+        }
+        
+        #play-btn { 
+            background: var(--accent-grad); 
+            border: none; 
+            width: 60px; 
+            height: 60px; 
+            border-radius: 50%; 
+            cursor: pointer; 
+            font-size: 24px; 
+            color: #000; 
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #waveform-container { 
+            position: relative; 
+            flex: 1; 
+            height: 50px; 
+            background: #000; 
+            border-radius: 12px; 
+            overflow: hidden; 
+            border: 1px solid #333; 
+            touch-action: none; /* Предотвращаем скролл при перемотке пальцем */
+        }
+        #wave-canvas { position: absolute; width: 100%; height: 100%; }
+        #progress-cursor { position: absolute; width: 3px; height: 100%; background: #fff; z-index: 5; pointer-events: none; }
+
         @media (min-width: 768px) {
             #lyrics { font-size: 52px; }
-            #ui { min-height: 120px; }
         }
     </style>
 </head>
 <body>
 
     <div id="drop-zone" onclick="document.getElementById('file-input').click()">
-        Нажмите или перетащите файл <br> (mp3.srt.mp3)
+        Нажмите, чтобы выбрать файл<br>(mp3.srt.mp3)
         <input type="file" id="file-input" style="display:none" accept="audio/*">
     </div>
     
@@ -64,7 +144,7 @@
     </div>
 
     <div id="ui">
-        <div id="filename" style="font-size: 10px; color: #555; margin-bottom: 10px; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 90%; text-align: center;"></div>
+        <div id="filename" style="font-size: 10px; color: #555; margin-bottom: 10px; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; text-align: center;"></div>
         <div class="controls">
             <button id="play-btn">▶</button>
             <div id="waveform-container">
@@ -101,9 +181,8 @@
                 const barWidth = freqCanvas.width / dataArray.length;
                 for (let i = 0; i < dataArray.length; i++) {
                     const val = dataArray[i];
-                    const barH = (val / 255) * freqCanvas.height;
                     ctxF.fillStyle = `hsla(${(i/dataArray.length)*180+200}, 80%, 50%, ${val/255})`;
-                    ctxF.fillRect(i * barWidth, freqCanvas.height - barH, barWidth - 2, barH);
+                    ctxF.fillRect(i * barWidth, freqCanvas.height - (val/255)*freqCanvas.height, barWidth - 2, (val/255)*freqCanvas.height);
                 }
             }
 
@@ -116,12 +195,11 @@
                 const w = waveCanvas.width;
                 const h = waveCanvas.height;
                 const progressPos = (audio.currentTime / (audio.duration || 1)) * w;
-                const amp = h / 2;
                 ctxW.clearRect(0, 0, w, h);
                 for (let i = 0; i < waveData.length; i++) {
                     ctxW.fillStyle = (i < progressPos) ? "#ff8c00" : "#444";
                     const peak = waveData[i];
-                    ctxW.fillRect(i, (1 + peak.min) * amp, 1, Math.max(1, (peak.max - peak.min) * amp));
+                    ctxW.fillRect(i, (1 + peak.min) * (h/2), 1, Math.max(1, (peak.max - peak.min) * (h/2)));
                 }
                 cursor.style.left = progressPos + 'px';
             }
@@ -140,7 +218,7 @@
                     subtitles = parseSRT(srtText);
                     audioData = buffer.slice(0, srtOffset);
                 }
-            } catch(err) { console.log("SRT error or missing"); }
+            } catch(e) {}
 
             audio.src = URL.createObjectURL(new Blob([audioData]));
             await calculateWave(audioData);
@@ -153,17 +231,8 @@
         // Автозагрузка
         fetch('mp3.srt.mp3').then(r => r.ok && r.arrayBuffer()).then(b => b && processAudioBuffer(b, 'mp3.srt.mp3')).catch(() => {});
 
-        // Выбор файла через кнопку (для мобильных)
         document.getElementById('file-input').onchange = async (e) => {
             const file = e.target.files[0];
-            if (file) processAudioBuffer(await file.arrayBuffer(), file.name);
-        };
-
-        // Drag & Drop
-        document.body.ondragover = e => { e.preventDefault(); document.getElementById('drop-zone').classList.add('active'); };
-        document.body.ondrop = async (e) => {
-            e.preventDefault();
-            const file = e.dataTransfer.files[0];
             if (file) processAudioBuffer(await file.arrayBuffer(), file.name);
         };
 
@@ -171,7 +240,7 @@
             const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
             const audioBuf = await tempCtx.decodeAudioData(data.slice(0));
             const raw = audioBuf.getChannelData(0);
-            const w = waveCanvas.clientWidth || window.innerWidth;
+            const w = waveCanvas.clientWidth || 800;
             waveData = [];
             const step = Math.ceil(raw.length / w);
             for (let i = 0; i < w; i++) {
@@ -189,7 +258,7 @@
             if (audioCtx) return;
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 64; // Меньше для мобильных (экономия ресурсов)
+            analyser.fftSize = 64;
             source = audioCtx.createMediaElementSource(audio);
             source.connect(analyser);
             analyser.connect(audioCtx.destination);
@@ -225,10 +294,22 @@
             document.getElementById('play-btn').innerText = audio.paused ? '▶' : 'II'; 
         };
 
-        // Перемотка кликом/касанием
-        document.getElementById('waveform-container').addEventListener('click', (e) => {
-            if (isLoaded) audio.currentTime = (e.offsetX / e.currentTarget.clientWidth) * audio.duration;
-        });
+        // Перемотка для мобилок (Touch) + Десктоп (Click)
+        const seek = (e) => {
+            if (!isLoaded) return;
+            const rect = waveCanvas.getBoundingClientRect();
+            const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+            audio.currentTime = (x / rect.width) * audio.duration;
+        };
+        document.getElementById('waveform-container').addEventListener('click', seek);
+        document.getElementById('waveform-container').addEventListener('touchstart', seek);
+
+        document.body.ondragover = e => e.preventDefault();
+        document.body.ondrop = async (e) => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            if (file) processAudioBuffer(await file.arrayBuffer(), file.name);
+        };
     </script>
 </body>
 </html>
